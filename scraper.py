@@ -181,4 +181,4 @@ if __name__ == "__main__":
         save_history(history)
         print("History updated.")
     else:
-        print("No new jobs.")
+        print("No new jobs.") 
