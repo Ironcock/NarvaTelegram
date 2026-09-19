@@ -254,7 +254,7 @@ def check_seti(history, max_posts=1, dry_run=False):
                 if send_telegram(formatted_post, dry_run=dry_run):
                     new_ids.append(job_id)
                     sent_count += 1
-                    time.sleep(2.5)
+                    time.sleep(6)
                 
                 if sent_count >= max_posts:
                     break
@@ -381,7 +381,7 @@ def check_cvkeskus(history, max_posts=1, dry_run=False):
                 if send_telegram(formatted_post, dry_run=dry_run):
                     new_ids.append(job_id)
                     sent_count += 1
-                    time.sleep(2.5)
+                    time.sleep(6)
                     
                 if sent_count >= max_posts:
                     break
@@ -601,7 +601,7 @@ def check_tootukassa(history, max_posts=1, dry_run=False):
                 if send_telegram(formatted_post, dry_run=dry_run):
                     new_ids.append(job_id)
                     sent_count += 1
-                    time.sleep(2.5)
+                    time.sleep(6)
                     
                 if sent_count >= max_posts:
                     break
@@ -614,11 +614,81 @@ def check_tootukassa(history, max_posts=1, dry_run=False):
     return False
 
 
+def init_baseline_history():
+    """Fetches all currently visible IDs across Seti, CVKeskus, and Tootukassa and saves them to history.json without sending anything to Telegram."""
+    print("🔄 Initializing baseline history from all 3 portals...")
+    history = {"seti": [], "cvkeskus": [], "tootukassa": []}
+    
+    # 1. Seti.ee
+    try:
+        r = requests.get("https://www.magazin.seti.ee/modules/Board/index.php?pa=view&cid=33", headers=HEADERS, timeout=10)
+        r.encoding = r.apparent_encoding or 'windows-1251'
+        soup = BeautifulSoup(r.text, 'html.parser')
+        for link in soup.select('a[href*="viewannonces"]'):
+            href = link.get('href')
+            if not href.startswith('http'):
+                href = "https://www.magazin.seti.ee/modules/Board/" + href
+            if href not in history["seti"]:
+                history["seti"].append(href)
+        print(f"  ✅ Seti.ee: found {len(history['seti'])} active ads.")
+    except Exception as e:
+        print(f"  ❌ Error fetching Seti ads: {e}")
+
+    # 2. CVKeskus.ee
+    try:
+        r = requests.get("https://www.cvkeskus.ee/toopakkumised?op=search&search%5Blocations%5D%5B%5D=6&sort=activation_date", headers=HEADERS, timeout=10)
+        soup = BeautifulSoup(r.content, 'html.parser')
+        for job in soup.select('a.jobad-url'):
+            href = job.get('href', '')
+            job_id = href.split('-')[-1]
+            if job_id and job_id not in history["cvkeskus"]:
+                history["cvkeskus"].append(job_id)
+        print(f"  ✅ CVKeskus.ee: found {len(history['cvkeskus'])} active ads.")
+    except Exception as e:
+        print(f"  ❌ Error fetching CVKeskus ads: {e}")
+
+    # 3. Tootukassa.ee
+    try:
+        url = "https://www.tootukassa.ee/web/graphql"
+        query = {
+            "operationName": "jobOfferSearch",
+            "variables": {"first": 50, "searchInput": {"otsisona": "Narva"}},
+            "query": "query jobOfferSearch($first: Int, $searchInput: InputToopakkumineAvalikOtsingDTO) { jobOffersQuery(first: $first, searchInput: $searchInput) { edges { id aadressid } } }"
+        }
+        r = requests.post(url, json=query, headers={'User-Agent': HEADERS['User-Agent'], 'Content-Type': 'application/json'}, timeout=10)
+        edges = r.json().get('data', {}).get('jobOffersQuery', {}).get('edges', [])
+        for job in edges:
+            addrs = [str(a) for a in job.get('aadressid', []) if a]
+            is_narva = any(('narva' in a.lower() and 'narva mnt' not in a.lower() and 'tallinn' not in a.lower()) for a in addrs)
+            if is_narva:
+                job_id = str(job['id'])
+                if job_id not in history["tootukassa"]:
+                    history["tootukassa"].append(job_id)
+        print(f"  ✅ Töötukassa.ee: found {len(history['tootukassa'])} active Narva jobs.")
+    except Exception as e:
+        print(f"  ❌ Error fetching Tootukassa jobs: {e}")
+
+    # Prune each list to latest 200 just in case
+    for k in history:
+        history[k] = history[k][-200:]
+        
+    save_history(history)
+    total = sum(len(v) for v in history.values())
+    print(f"\n🎉 Baseline initialized! Total {total} active vacancies recorded into history.json.")
+    print("Future scraper runs will only post vacancies published AFTER this moment.")
+    return history
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Narva Job Scraper Bot")
-    parser.add_argument("--limit", type=int, default=1, help="Max new posts per source to send in this run (default: 1)")
+    parser.add_argument("--limit", type=int, default=10, help="Max new posts per source to send in this run (default: 10)")
     parser.add_argument("--dry-run", action="store_true", help="Print posts without sending to Telegram")
+    parser.add_argument("--init-history", action="store_true", help="Seed history.json with all current active jobs as baseline without sending to Telegram")
     args = parser.parse_args()
+
+    if args.init_history:
+        init_baseline_history()
+        sys.exit(0)
 
     history = load_history()
     print(f"Starting Narva Job Scraper (limit per source: {args.limit}, dry_run: {args.dry_run})...")

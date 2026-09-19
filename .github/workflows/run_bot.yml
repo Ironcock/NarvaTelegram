@@ -2,7 +2,7 @@ name: Job Bot
 
 on:
   schedule:
-    - cron: '*/30 * * * *'  # Runs every 30 mins
+    - cron: '*/5 * * * *'  # Runs every 5 mins
   workflow_dispatch:
 
 permissions:
