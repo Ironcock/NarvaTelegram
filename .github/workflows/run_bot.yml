@@ -18,7 +18,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.11'
 
       - name: Install libraries
         run: pip install -r requirements.txt
@@ -26,12 +26,14 @@ jobs:
       - name: Run Scraper
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python scraper.py
 
       - name: Save History
         run: |
-          git config --global user.name "Bot"
-          git config --global user.email "bot@noreply.com"
+          git config --global user.name "NarvaJobBot"
+          git config --global user.email "bot@narvajobs.local"
           git add history.json || echo "No history file yet"
-          git commit -m "Update history" || echo "No changes"
+          git commit -m "Update history [skip ci]" || echo "No changes"
           git push

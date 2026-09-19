@@ -6,5 +6,5 @@ __pycache__/
 # Environment variables
 .env
 
-# Local history
-history.json
+# Extensions
+*.vsix
