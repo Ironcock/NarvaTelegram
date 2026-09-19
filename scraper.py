@@ -17,8 +17,8 @@ if sys.platform == "win32":
 load_dotenv(Path(__file__).parent / ".env")
 
 # --- CONFIGURATION ---
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8589217491:AAFGEOhRyEXZ9EzviIZ-QaM1eQT4w-fdJ1U")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "-1003535100197")
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 HISTORY_FILE = Path(__file__).parent / "history.json"
@@ -26,7 +26,11 @@ HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 }
 
-# Configure AI
+# Validation
+if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+    print("❌ ERROR: TELEGRAM_TOKEN or TELEGRAM_CHAT_ID is missing! Please set them in .env or GitHub Secrets.")
+    sys.exit(1)
+
 if not GEMINI_API_KEY:
     print("❌ ERROR: Gemini API Key is missing! Please set it in .env or GitHub Secrets.")
     sys.exit(1)
