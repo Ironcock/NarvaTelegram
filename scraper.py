@@ -72,6 +72,54 @@ def send_telegram(text, dry_run=False):
         print(f"  ❌ Telegram Connection Fail: {e}")
         return False
 
+# Approximate road distances from Narva (km) for Estonian settlements
+ESTONIA_DISTANCES_FROM_NARVA = {
+    'narva-jõesuu': 15, 'narva joesuu': 15, 'нарва-йыэсуу': 15, 'нарва йыэсуу': 15, 'sinimäe': 18,
+    'sillamäe': 25, 'силламяэ': 25,
+    'jõhvi': 50, 'johvi': 50, 'йыхви': 50,
+    'kohtla-järve': 55, 'kohtla jarve': 55, 'кохтла-ярве': 55, 'ahtme': 50, 'ахтме': 50,
+    'toila': 45, 'тойла': 45,
+    'kiviõli': 75, 'kivioli': 75, 'кивиыли': 75,
+    'püssi': 70, 'пюсси': 70,
+    'iisaku': 65, 'ийсаку': 65,
+    'rakvere': 115, 'раквере': 115,
+    'kunda': 105, 'кунда': 105,
+    'tapa': 145, 'тапа': 145,
+    'raasiku': 190, 'raaziku': 190, 'раазику': 190,
+    'tallinn': 210, 'таллинн': 210, 'таллин': 210,
+    'maardu': 195, 'маарду': 195,
+    'viimsi': 210, 'виймси': 210,
+    'jüri': 200, 'юри': 200,
+    'saue': 230, 'сауэ': 230,
+    'keila': 235, 'кейла': 235,
+    'paldiski': 255, 'палдиски': 255,
+    'tartu': 180, 'тарту': 180,
+    'mustvee': 115, 'муствеэ': 115,
+    'kallaste': 135, 'калласте': 135,
+    'jõgeva': 150, 'йыгева': 150,
+    'viljandi': 235, 'вильянди': 235,
+    'pärnu': 290, 'parnu': 290, 'пярну': 290,
+    'paide': 180, 'пайде': 180,
+    'türi': 190, 'тюри': 190,
+    'valga': 265, 'валга': 265,
+    'võru': 245, 'выру': 245,
+    'haapsalu': 305, 'хаапсалу': 305,
+    'kuressaare': 425, 'курессааре': 425,
+}
+
+def get_distance_annotation(location_text):
+    if not location_text:
+        return ''
+    loc_lower = location_text.lower()
+    # If explicitly in Narva (and not Narva-Jõesuu), no distance needed
+    if 'narva' in loc_lower or 'нарва' in loc_lower:
+        if not any(k in loc_lower for k in ['narva-jõesuu', 'narva joesuu', 'нарва-йыэсуу', 'нарва йыэсуу']):
+            return ''
+    for city, dist in ESTONIA_DISTANCES_FROM_NARVA.items():
+        if city in loc_lower:
+            return f' (~{dist} км от Нарвы)'
+    return ''
+
 def format_with_ai(title, content, source_name, url, is_russian=False):
     task_desc = "Отредактируй и оформи это объявление" if is_russian else "Переведи на русский язык и оформи вакансию"
     prompt = f"""
@@ -99,7 +147,7 @@ def format_with_ai(title, content, source_name, url, is_russian=False):
 ПРАВИЛА ОФОРМЛЕНИЯ ПОСТА:
 - Первая строка: <b>Название должности</b> (из названия вакансии)
 - 🏢 <b>Работодатель:</b> (ТОЛЬКО если названа конкретная фирма/организация. Если нет — пропусти строку полностью).
-- 📍 <b>Место работы / Адрес:</b> (город/место, указанные в тексте)
+- 📍 <b>Место работы / Адрес:</b> (город/место, указанные в тексте. Если в тексте указано расстояние от Нарвы или если место вне Нарвы, обязательно сохрани расстояние в скобках, например: <code>пос. Раазику (~190 км от Нарвы)</code> или <code>г. Силламяэ (~25 км от Нарвы)</code>. Если работа в Нарве — расстояние указывать не нужно).
 - 💰 <b>Зарплата:</b> (укажи сумму и условия ТОЧНО как в тексте. Если не указана — напиши: <i>По договоренности / не указана</i>)
 - ⏳ <b>Срок подачи заявки:</b> (ТОЛЬКО если указана дата окончания или дедлайн)
 - ⏱️ <b>График / Занятость:</b> (ТОЛЬКО если прямо упомянуты в данных: смены, полная/частичная занятость, дата старта)
@@ -176,6 +224,10 @@ def check_seti(history, max_posts=1, dry_run=False):
                 except Exception as ex:
                     desc_text = f"Error: {ex}"
                 
+                dist_ann = get_distance_annotation(desc_text)
+                if dist_ann and "от Нарвы" not in desc_text:
+                    desc_text += f"\nПримерное расстояние: {dist_ann}"
+
                 formatted_post = format_with_ai(title, desc_text, "SETI.EE", href, is_russian=True)
                 if send_telegram(formatted_post, dry_run=dry_run):
                     new_ids.append(job_id)
@@ -462,7 +514,10 @@ def fetch_tootukassa_details(job_id, addresses):
         summary = []
         if company_name: summary.append(f"Компания / Работодатель: {company_name}")
         summary.append(f"Должность: {data.get('nimetus')}")
-        if addresses: summary.append(f"Точный адрес / Место работы: {', '.join(addresses)}")
+        if addresses:
+            addr_str = ', '.join(addresses)
+            dist_ann = get_distance_annotation(addr_str)
+            summary.append(f"Точный адрес / Место работы: {addr_str}{dist_ann}")
         if salary: summary.append(f"Зарплата: {salary}")
         if deadline: summary.append(f"Срок подачи заявки (дедлайн): {deadline}")
         if schedule_parts: summary.append(f"Занятость и график: {', '.join(schedule_parts)}")
