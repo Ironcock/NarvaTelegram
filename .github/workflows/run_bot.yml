@@ -3,12 +3,17 @@ name: Job Bot
 on:
   workflow_dispatch:
 
+concurrency:
+  group: narva-bot-execution
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,4 +39,5 @@ jobs:
           git config --global user.email "bot@narvajobs.local"
           git add history.json || echo "No history file yet"
           git commit -m "Update history [skip ci]" || echo "No changes"
+          git pull --rebase origin main || true
           git push

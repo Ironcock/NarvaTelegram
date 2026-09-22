@@ -9,8 +9,8 @@ import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
-# Ensure UTF-8 output on Windows
-if sys.platform == "win32":
+# Ensure UTF-8 output and instant line buffering
+if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 
 # Load environment variables
@@ -193,10 +193,10 @@ def format_with_ai(title, content, source_name, url, is_russian=False):
 - НИКАКИХ ХЕШТЕГОВ (хештеги запрещены!).
 - Используй ТОЛЬКО Telegram HTML теги: <b>, <i>, <code>, <a>, <blockquote>, <pre>. Никакого Markdown (** или ##), никаких кодовых блоков.
 """
-    for model_name in ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest']:
+    for model_name in ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-3.5-flash-lite', 'gemini-3.5-flash']:
         try:
             m = genai.GenerativeModel(model_name)
-            resp = m.generate_content(prompt)
+            resp = m.generate_content(prompt, request_options={'timeout': 25})
             text = resp.text.strip().replace("```html", "").replace("```", "").strip()
             return text
         except Exception as e:
